@@ -7,6 +7,8 @@ import { RepoMap } from "@/components/RepoMap";
 import { indexRepo } from "@/lib/indexer";
 import { analyze, SEVERITY_COLOR, type Finding } from "@/lib/analyze";
 import { AnalysisPanel, type InsightState } from "@/components/AnalysisPanel";
+import { ChatPanel, type ChatMsg } from "@/components/ChatPanel";
+import { ask, type Citation, type Turn } from "@/lib/assistant";
 import { AnimatePresence, motion } from "framer-motion";
 import { loadZip } from "@/lib/loader";
 import type { Repo } from "@/lib/types";
@@ -18,6 +20,12 @@ export default function Home() {
   const [selected, setSelected] = useState<string | null>(null);
   const [hl, setHl] = useState<[number, number] | null>(null);
   const [insights, setInsights] = useState<InsightState>({});
+  const [tab, setTab] = useState<"analiz" | "sohbet">("analiz");
+  const [messages, setMessages] = useState<ChatMsg[]>([]);
+  const [history, setHistory] = useState<Turn[]>([]);
+  const [thinking, setThinking] = useState(false);
+  const [focus, setFocus] = useState<Set<string>>(new Set());
+  const [trail, setTrail] = useState<string[]>([]);
 
   async function onZip(data: ArrayBuffer, name: string) {
     if (!data.byteLength) return setError(name);
@@ -28,6 +36,7 @@ export default function Home() {
       setRepo(r);
       setSelected(null);
       setInsights({});
+      setMessages([]); setHistory([]); setFocus(new Set()); setTrail([]); setTab("analiz");
       const ix = indexRepo(r);
       const a = analyze(r, ix);
       fetch("/api/insights", {
@@ -61,6 +70,30 @@ export default function Home() {
     setHl(f.line ? [f.line, f.line] : null);
   }
 
+  async function send(q: string) {
+    if (!repo || !index || !analysis) return;
+    setTab("sohbet");
+    setMessages((m) => [...m, { role: "user", text: q }]);
+    setThinking(true);
+    try {
+      const a = await ask({ base: "", question: q, repo, index, analysis, history });
+      setFocus(new Set([...a.plan.focus, ...a.plan.path]));
+      setTrail(a.plan.path);
+      setSelected(null);
+      setMessages((m) => [...m, { role: "assistant", text: a.plan.reply, answer: a.answer, path: a.plan.path, citations: a.citations, ms: a.ms }]);
+      setHistory((h) => [...h, { role: "user", content: q }, { role: "assistant", content: a.answer }]);
+    } catch (e) {
+      setMessages((m) => [...m, { role: "assistant", text: (e as Error).message, error: true }]);
+    } finally {
+      setThinking(false);
+    }
+  }
+
+  function cite(c: Citation) {
+    const p = repo?.files.find((f) => f.path === c.path || f.path.endsWith("/" + c.path))?.path;
+    if (p) { setSelected(p); setHl([c.start, c.end]); }
+  }
+
   const loc = useMemo(() => repo?.files.reduce((s, f) => s + f.lines, 0) ?? 0, [repo]);
 
   return (
@@ -82,7 +115,7 @@ export default function Home() {
             <FileTree files={repo.files} selected={selected} onSelect={(p) => { setSelected(p); setHl(null); }} marks={marks} />
           </aside>
           <section className="relative min-w-0 flex-1">
-            <RepoMap index={index} selected={selected} onSelect={(p) => { setSelected(p); setHl(null); }} marks={marks} />
+            <RepoMap index={index} selected={selected} onSelect={(p) => { setSelected(p); setHl(null); }} marks={marks} focus={focus} trail={trail} />
             <AnimatePresence>
               {file && (
                 <motion.div
@@ -99,8 +132,24 @@ export default function Home() {
               )}
             </AnimatePresence>
           </section>
-          <aside className="scroll-thin w-[380px] shrink-0 overflow-y-auto border-l border-line bg-panel p-4">
-            <AnalysisPanel analysis={analysis} state={insights} onPick={pick} />
+          <aside className="flex w-[400px] shrink-0 flex-col border-l border-line bg-panel p-4">
+            <div className="mb-3 flex gap-1 rounded-xl bg-ink p-1">
+              {(["analiz", "sohbet"] as const).map((t) => (
+                <button key={t} onClick={() => setTab(t)}
+                  className={`flex-1 rounded-lg py-1.5 text-sm ${tab === t ? "bg-panel-2 font-semibold text-white" : "text-muted"}`}>
+                  {t === "analiz" ? "Analiz" : "Sohbet"}
+                </button>
+              ))}
+            </div>
+            <div className="min-h-0 flex-1">
+              {tab === "analiz" ? (
+                <div className="scroll-thin h-full overflow-y-auto pr-1">
+                  <AnalysisPanel analysis={analysis} state={insights} onPick={pick} onAsk={send} />
+                </div>
+              ) : (
+                <ChatPanel messages={messages} busy={thinking} onSend={send} onCite={cite} onStep={(p) => { setSelected(p); setHl(null); }} />
+              )}
+            </div>
           </aside>
         </div>
       ) : (

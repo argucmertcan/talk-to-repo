@@ -85,7 +85,9 @@ export async function ask(opts: {
   let res = await post("/api/plan", { question, context, history });
   if (res.error) throw new Error(res.error);
   let ms = res.ms as number;
-  let { plan, errors } = validatePlan(res.plan as Plan, repo);
+  const first = validatePlan(res.plan as Plan, repo);
+  let plan = first.plan;
+  const errors = first.errors;
   let retried = false;
   if (errors.length || (plan.kind !== "chat" && plan.read.length === 0)) {
     retried = true;

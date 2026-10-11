@@ -38,10 +38,13 @@ export function useLayout(index: RepoIndex) {
   }, [index]);
 }
 
-export function RepoMap({ index, selected, onSelect, marks }: {
+export function RepoMap({ index, selected, onSelect, marks, focus, trail }: {
   index: RepoIndex; selected: string | null; onSelect: (p: string) => void;
   /** dosya → bulgu rengi (analiz) */
   marks?: Map<string, string>;
+  /** sohbetin vurguladığı dosyalar ve sıralı istek yolu */
+  focus?: Set<string>;
+  trail?: string[];
 }) {
   const { nodes, pos, color, box, labels } = useLayout(index);
   const [view, setView] = useState(box);
@@ -50,10 +53,11 @@ export function RepoMap({ index, selected, onSelect, marks }: {
   const svg = useRef<SVGSVGElement>(null);
 
   const near = useMemo(() => {
+    if (focus && focus.size && !hover) return new Set([...focus, ...(trail ?? [])]);
     const id = hover ?? selected;
     if (!id) return null;
     return new Set([id, ...index.edges.filter((e) => e.from === id || e.to === id).flatMap((e) => [e.from, e.to])]);
-  }, [hover, selected, index]);
+  }, [hover, selected, index, focus, trail]);
 
   function onWheel(e: React.WheelEvent) {
     const r = svg.current!.getBoundingClientRect();
@@ -98,6 +102,11 @@ export function RepoMap({ index, selected, onSelect, marks }: {
               stroke={on ? "#ff8c3a" : "#22314d"} strokeWidth={on ? 1.8 : 1} opacity={near && !on ? 0.25 : 0.9} markerEnd="url(#arrow)" />
           );
         })}
+        {trail && trail.length > 1 && trail.slice(1).map((to, i) => {
+          const a = pos.get(trail[i]), b = pos.get(to);
+          if (!a || !b) return null;
+          return <line key={`t${i}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#ff8c3a" strokeWidth={4} strokeLinecap="round" opacity={0.9} />;
+        })}
         {nodes.map((n) => {
           const dim = near && !near.has(n.id);
           const sel = n.id === selected;
@@ -110,7 +119,14 @@ export function RepoMap({ index, selected, onSelect, marks }: {
               )}
               <circle r={n.r} fill={marks?.get(n.id) ?? color.get(n.group)} fillOpacity={marks?.get(n.id) ? 0.35 : 0.22}
                 stroke={sel ? "#ff8c3a" : marks?.get(n.id) ?? color.get(n.group)} strokeWidth={sel ? 3 : 1.5} />
-              {(n.r > 9.5 || sel || n.id === hover || marks?.has(n.id)) && (
+              {focus?.has(n.id) && <circle r={n.r + 10} fill="#ff8c3a" opacity={0.18} />}
+              {trail && trail.indexOf(n.id) >= 0 && (
+                <g transform={`translate(${n.r * 0.75},${-n.r * 0.75})`}>
+                  <circle r={9} fill="#ff8c3a" />
+                  <text textAnchor="middle" dy={4} fontSize={11} fontWeight={800} fill="#0b1220">{trail.indexOf(n.id) + 1}</text>
+                </g>
+              )}
+              {(n.r > 9.5 || sel || n.id === hover || marks?.has(n.id) || focus?.has(n.id)) && (
                 <text y={n.r + 11} textAnchor="middle" fontSize={9.5} fill="#e6edf7" fontFamily="var(--font-mono)" style={{ pointerEvents: "none" }}>
                   {n.id.split("/").pop()}
                 </text>

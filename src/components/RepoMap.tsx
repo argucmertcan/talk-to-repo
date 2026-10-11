@@ -38,7 +38,11 @@ export function useLayout(index: RepoIndex) {
   }, [index]);
 }
 
-export function RepoMap({ index, selected, onSelect }: { index: RepoIndex; selected: string | null; onSelect: (p: string) => void }) {
+export function RepoMap({ index, selected, onSelect, marks }: {
+  index: RepoIndex; selected: string | null; onSelect: (p: string) => void;
+  /** dosya → bulgu rengi (analiz) */
+  marks?: Map<string, string>;
+}) {
   const { nodes, pos, color, box, labels } = useLayout(index);
   const [view, setView] = useState(box);
   const [hover, setHover] = useState<string | null>(null);
@@ -101,8 +105,12 @@ export function RepoMap({ index, selected, onSelect }: { index: RepoIndex; selec
             <g key={n.id} transform={`translate(${n.x},${n.y})`} opacity={dim ? 0.25 : 1} className="cursor-pointer"
               onMouseEnter={() => setHover(n.id)} onMouseLeave={() => setHover(null)}
               onClick={(e) => { e.stopPropagation(); onSelect(n.id); }}>
-              <circle r={n.r} fill={color.get(n.group)} fillOpacity={0.22} stroke={sel ? "#ff8c3a" : color.get(n.group)} strokeWidth={sel ? 3 : 1.5} />
-              {(n.r > 9.5 || sel || n.id === hover) && (
+              {marks?.get(n.id) && (
+                <circle r={n.r + 6} fill="none" stroke={marks.get(n.id)} strokeWidth={2.5} strokeDasharray="5 3" className="animate-[spin_12s_linear_infinite]" />
+              )}
+              <circle r={n.r} fill={marks?.get(n.id) ?? color.get(n.group)} fillOpacity={marks?.get(n.id) ? 0.35 : 0.22}
+                stroke={sel ? "#ff8c3a" : marks?.get(n.id) ?? color.get(n.group)} strokeWidth={sel ? 3 : 1.5} />
+              {(n.r > 9.5 || sel || n.id === hover || marks?.has(n.id)) && (
                 <text y={n.r + 11} textAnchor="middle" fontSize={9.5} fill="#e6edf7" fontFamily="var(--font-mono)" style={{ pointerEvents: "none" }}>
                   {n.id.split("/").pop()}
                 </text>

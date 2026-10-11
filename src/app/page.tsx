@@ -5,6 +5,8 @@ import { FileTree } from "@/components/FileTree";
 import { CodeView } from "@/components/CodeView";
 import { RepoMap } from "@/components/RepoMap";
 import { indexRepo } from "@/lib/indexer";
+import { analyze, SEVERITY_COLOR, type Finding } from "@/lib/analyze";
+import { AnalysisPanel, type InsightState } from "@/components/AnalysisPanel";
 import { AnimatePresence, motion } from "framer-motion";
 import { loadZip } from "@/lib/loader";
 import type { Repo } from "@/lib/types";
@@ -14,6 +16,8 @@ export default function Home() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [selected, setSelected] = useState<string | null>(null);
+  const [hl, setHl] = useState<[number, number] | null>(null);
+  const [insights, setInsights] = useState<InsightState>({});
 
   async function onZip(data: ArrayBuffer, name: string) {
     if (!data.byteLength) return setError(name);
@@ -23,6 +27,17 @@ export default function Home() {
       const r = await loadZip(data, name);
       setRepo(r);
       setSelected(null);
+      setInsights({});
+      const ix = indexRepo(r);
+      const a = analyze(r, ix);
+      fetch("/api/insights", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ repo: r.name, stats: a.stats, findings: a.findings, files: r.files.map((f) => f.path) }),
+      })
+        .then((res) => res.json())
+        .then((d) => setInsights(d.error ? { error: d.error } : d))
+        .catch((e) => setInsights({ error: String(e) }));
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -32,6 +47,20 @@ export default function Home() {
 
   const file = useMemo(() => repo?.files.find((f) => f.path === selected) ?? null, [repo, selected]);
   const index = useMemo(() => (repo ? indexRepo(repo) : null), [repo]);
+  const analysis = useMemo(() => (repo && index ? analyze(repo, index) : null), [repo, index]);
+  const marks = useMemo(() => {
+    const m = new Map<string, string>();
+    const rank = { high: 3, medium: 2, low: 1, info: 0 };
+    for (const f of [...(analysis?.findings ?? [])].filter((f) => f.severity !== "info").sort((a, b) => rank[a.severity] - rank[b.severity]))
+      for (const p of f.files) m.set(p, SEVERITY_COLOR[f.severity]);
+    return m;
+  }, [analysis]);
+
+  function pick(f: Finding) {
+    setSelected(f.files[0]);
+    setHl(f.line ? [f.line, f.line] : null);
+  }
+
   const loc = useMemo(() => repo?.files.reduce((s, f) => s + f.lines, 0) ?? 0, [repo]);
 
   return (
@@ -47,13 +76,13 @@ export default function Home() {
           </>
         )}
       </header>
-      {repo && index ? (
+      {repo && index && analysis ? (
         <div className="flex min-h-0 flex-1">
           <aside className="w-64 shrink-0 border-r border-line bg-panel">
-            <FileTree files={repo.files} selected={selected} onSelect={setSelected} />
+            <FileTree files={repo.files} selected={selected} onSelect={(p) => { setSelected(p); setHl(null); }} marks={marks} />
           </aside>
           <section className="relative min-w-0 flex-1">
-            <RepoMap index={index} selected={selected} onSelect={setSelected} />
+            <RepoMap index={index} selected={selected} onSelect={(p) => { setSelected(p); setHl(null); }} marks={marks} />
             <AnimatePresence>
               {file && (
                 <motion.div
@@ -65,11 +94,14 @@ export default function Home() {
                     <span className="truncate">{file.path} · {file.lines} satır</span>
                     <button onClick={() => setSelected(null)} className="ml-auto pl-3 hover:text-white">✕</button>
                   </div>
-                  <div className="min-h-0 flex-1"><CodeView file={file} /></div>
+                  <div className="min-h-0 flex-1"><CodeView file={file} highlight={hl} /></div>
                 </motion.div>
               )}
             </AnimatePresence>
           </section>
+          <aside className="scroll-thin w-[380px] shrink-0 overflow-y-auto border-l border-line bg-panel p-4">
+            <AnalysisPanel analysis={analysis} state={insights} onPick={pick} />
+          </aside>
         </div>
       ) : (
         <Loader onZip={onZip} busy={busy} error={error} />

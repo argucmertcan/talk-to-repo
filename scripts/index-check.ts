@@ -16,3 +16,12 @@ import { indexRepo } from "../src/lib/indexer";
   console.log("en çok import edilen:", top);
   console.log("passwordReset sembolleri:", idx.byPath.get("src/services/passwordReset.service.ts")?.symbols);
 })();
+
+import { analyze } from "../src/lib/analyze";
+(async () => {
+  const buf = readFileSync(process.argv[2] ?? "public/demo/kargo-api.zip");
+  const repo = await loadZip(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer, "repo");
+  const a = analyze(repo, indexRepo(repo));
+  console.log("\nANALİZ", a.stats);
+  for (const f of a.findings) console.log(` [${f.severity}] ${f.kind}: ${f.fact}`);
+})();

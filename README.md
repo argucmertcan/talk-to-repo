@@ -3,7 +3,7 @@
 Bir kod deposunu yükle (public GitHub adresi ya da zip). Uygulama mimari haritasını çizer, güvenlik ve bakım sorunlarını işaretler;
 Türkçe sorduğunda ilgili dosyalar haritada yanar ve cevap `dosya:satır` alıntılı gelir. İstersen o repo için **CLAUDE.md** ve **ARCHITECTURE.md** üretir.
 
-Claude Code ile yapıldı. Nasıl yapıldığını (promptlar, aşamalar, gerçek hatalar) anlatan video: `<YOUTUBE_URL>`
+Claude Code ile yapıldı. Nasıl yapıldığını (promptlar, aşamalar, gerçek hatalar) anlatan video yakında. Serinin ilk projesi: [Talk to Excel](https://github.com/argucmertcan/talk-to-excel) ([video](https://youtu.be/CK87E0hdJwo)).
 
 ## Neler yapıyor
 - **Repo haritası:** her daire bir dosya (boyutu satır sayısı), çizgiler import'lar; klasörler kümelenir.

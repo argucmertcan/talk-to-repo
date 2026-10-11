@@ -1,5 +1,6 @@
 "use client";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { motion } from "framer-motion";
 import { forceCollide, forceLink, forceManyBody, forceSimulation, forceX, forceY, type SimulationNodeDatum } from "d3-force";
 import type { RepoIndex } from "@/lib/indexer";
 
@@ -48,6 +49,44 @@ export function RepoMap({ index, selected, onSelect, marks, focus, trail }: {
 }) {
   const { nodes, pos, color, box, labels } = useLayout(index);
   const [view, setView] = useState(box);
+  const viewRef = useRef(view);
+  viewRef.current = view;
+  const tween = useRef<number | null>(null);
+
+  // Görünümü yumuşakça hedefe taşı (kamera hareketi)
+  function animateTo(t: typeof box, ms = 900) {
+    if (tween.current) cancelAnimationFrame(tween.current);
+    const from = viewRef.current, t0 = performance.now();
+    const step = (now: number) => {
+      const p = Math.min(1, (now - t0) / ms), e = 1 - Math.pow(1 - p, 3);
+      setView({ x: from.x + (t.x - from.x) * e, y: from.y + (t.y - from.y) * e, w: from.w + (t.w - from.w) * e, h: from.h + (t.h - from.h) * e });
+      if (p < 1) tween.current = requestAnimationFrame(step);
+    };
+    tween.current = requestAnimationFrame(step);
+  }
+
+  // Sohbet yeni dosyalar vurguladığında haritayı onlara odakla
+  const focusKey = [...(focus ?? [])].join("|") + "#" + (trail ?? []).join("|");
+  useEffect(() => {
+    const ids = [...(focus ?? []), ...(trail ?? [])].filter((id) => pos.has(id));
+    if (!ids.length) { animateTo(box); return; }
+    const ns = ids.map((id) => pos.get(id)!);
+    const minX = Math.min(...ns.map((n) => n.x! - n.r)), maxX = Math.max(...ns.map((n) => n.x! + n.r));
+    const minY = Math.min(...ns.map((n) => n.y! - n.r)), maxY = Math.max(...ns.map((n) => n.y! + n.r));
+    const pad = 110, w = Math.max(maxX - minX + pad * 2, box.w * 0.45), h = Math.max(maxY - minY + pad * 2, box.h * 0.45);
+    animateTo({ x: (minX + maxX) / 2 - w / 2, y: (minY + maxY) / 2 - h / 2, w, h });
+  }, [focusKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Kod paneli haritanın sağ %46'sını kaplıyor: seçilen düğümü görünür sol bölgeye kaydır
+  useEffect(() => {
+    if (!selected || !pos.has(selected)) return;
+    const n = pos.get(selected)!, v = viewRef.current;
+    const rx = (n.x! - v.x) / v.w;
+    if (rx > 0.08 && rx < 0.5) return;
+    animateTo({ ...v, x: n.x! - v.w * 0.28, y: n.y! - v.h * 0.5 }, 700);
+  }, [selected]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const groupIndex = useMemo(() => new Map([...new Set(nodes.map((n) => n.group))].map((g, i) => [g, i])), [nodes]);
   const [hover, setHover] = useState<string | null>(null);
   const drag = useRef<{ x: number; y: number; vx: number; vy: number } | null>(null);
   const svg = useRef<SVGSVGElement>(null);
@@ -102,16 +141,32 @@ export function RepoMap({ index, selected, onSelect, marks, focus, trail }: {
               stroke={on ? "#ff8c3a" : "#22314d"} strokeWidth={on ? 1.8 : 1} opacity={near && !on ? 0.25 : 0.9} markerEnd="url(#arrow)" />
           );
         })}
-        {trail && trail.length > 1 && trail.slice(1).map((to, i) => {
-          const a = pos.get(trail[i]), b = pos.get(to);
-          if (!a || !b) return null;
-          return <line key={`t${i}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#ff8c3a" strokeWidth={4} strokeLinecap="round" opacity={0.9} />;
-        })}
+        {trail && trail.length > 1 && (() => {
+          const pts = trail.map((id) => pos.get(id)).filter((p): p is N => !!p);
+          const seg = (a: N, b: N) => {
+            const mx = (a.x! + b.x!) / 2, my = (a.y! + b.y!) / 2, dx = b.x! - a.x!, dy = b.y! - a.y!;
+            return `Q ${mx - dy * 0.18} ${my + dx * 0.18} ${b.x} ${b.y}`;
+          };
+          const full = `M ${pts[0].x} ${pts[0].y} ` + pts.slice(1).map((b, i) => seg(pts[i], b)).join(" ");
+          return (
+            <g key={trail.join("|")}>
+              {pts.slice(1).map((b, i) => (
+                <motion.path key={i} d={`M ${pts[i].x} ${pts[i].y} ${seg(pts[i], b)}`} fill="none" stroke="#ff8c3a" strokeWidth={4.5} strokeLinecap="round"
+                  initial={{ pathLength: 0, opacity: 0.9 }} animate={{ pathLength: 1 }} transition={{ delay: 0.5 + i * 0.45, duration: 0.45, ease: "easeInOut" }}
+                  style={{ filter: "drop-shadow(0 0 6px rgba(255,140,58,.8))" }} />
+              ))}
+              <circle r={6} fill="#fff" style={{ filter: "drop-shadow(0 0 8px #ffb070)" }} opacity={0}>
+                <animate attributeName="opacity" from="0" to="1" begin={`${0.5 + pts.length * 0.45}s`} dur="0.3s" fill="freeze" />
+                <animateMotion path={full} dur={`${Math.max(2, pts.length * 0.6)}s`} begin={`${0.5 + pts.length * 0.45}s`} repeatCount="indefinite" />
+              </circle>
+            </g>
+          );
+        })()}
         {nodes.map((n) => {
           const dim = near && !near.has(n.id);
           const sel = n.id === selected;
           return (
-            <g key={n.id} transform={`translate(${n.x},${n.y})`} opacity={dim ? 0.25 : 1} className="cursor-pointer"
+            <g key={n.id} transform={`translate(${n.x},${n.y})`} opacity={dim ? 0.25 : 1} className="cursor-pointer" style={{ transition: "opacity .5s" }}
               onMouseEnter={() => setHover(n.id)} onMouseLeave={() => setHover(null)}
               onClick={(e) => { e.stopPropagation(); onSelect(n.id); }}>
               {marks?.get(n.id) && (
@@ -119,18 +174,22 @@ export function RepoMap({ index, selected, onSelect, marks, focus, trail }: {
               )}
               <circle r={n.r} fill={marks?.get(n.id) ?? color.get(n.group)} fillOpacity={marks?.get(n.id) ? 0.35 : 0.22}
                 stroke={sel ? "#ff8c3a" : marks?.get(n.id) ?? color.get(n.group)} strokeWidth={sel ? 3 : 1.5} />
-              {focus?.has(n.id) && <circle r={n.r + 10} fill="#ff8c3a" opacity={0.18} />}
+              <motion.g initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+                transition={{ delay: 0.15 + (groupIndex.get(n.group) ?? 0) * 0.09 + (n.r % 7) * 0.02, type: "spring", stiffness: 260, damping: 18 }}>
+              {focus?.has(n.id) && <circle r={n.r + 10} fill="#ff8c3a" className="animate-[pulse_1.6s_ease-in-out_infinite]" opacity={0.22} />}
               {trail && trail.indexOf(n.id) >= 0 && (
-                <g transform={`translate(${n.r * 0.75},${-n.r * 0.75})`}>
+                <motion.g key={trail.join("|")} transform={`translate(${n.r * 0.75},${-n.r * 0.75})`}
+                  initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.5 + trail.indexOf(n.id) * 0.45, type: "spring", stiffness: 400, damping: 15 }}>
                   <circle r={9} fill="#ff8c3a" />
                   <text textAnchor="middle" dy={4} fontSize={11} fontWeight={800} fill="#0b1220">{trail.indexOf(n.id) + 1}</text>
-                </g>
+                </motion.g>
               )}
               {(n.r > 9.5 || sel || n.id === hover || marks?.has(n.id) || focus?.has(n.id)) && (
                 <text y={n.r + 11} textAnchor="middle" fontSize={9.5} fill="#e6edf7" fontFamily="var(--font-mono)" style={{ pointerEvents: "none" }}>
                   {n.id.split("/").pop()}
                 </text>
               )}
+              </motion.g>
             </g>
           );
         })}
@@ -140,7 +199,7 @@ export function RepoMap({ index, selected, onSelect, marks, focus, trail }: {
           {hover} · {pos.get(hover)?.lines} satır · {index.fanIn.get(hover) ?? 0} yerden import
         </div>
       )}
-      <button onClick={() => setView(box)} className="absolute right-3 top-3 rounded-lg border border-line bg-ink/80 px-2.5 py-1 text-xs text-muted hover:text-white">
+      <button onClick={() => animateTo(box)} className="absolute right-3 top-3 rounded-lg border border-line bg-ink/80 px-2.5 py-1 text-xs text-muted hover:text-white">
         Sığdır
       </button>
     </div>

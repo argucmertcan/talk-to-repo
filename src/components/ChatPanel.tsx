@@ -75,6 +75,16 @@ export function ChatPanel({ messages, busy, onSend, onCite, onStep }: {
                 </div>
               )}
               {m.answer && <AnswerText text={m.answer} onCite={onCite} />}
+              {m.citations && m.citations.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1 border-t border-line pt-2">
+                  <span className="mr-1 text-[11px] text-muted">Kaynaklar:</span>
+                  {m.citations.map((c, k) => (
+                    <button key={k} onClick={() => onCite(c)} className="rounded bg-accent/15 px-1.5 py-0.5 font-mono text-[11px] text-accent-2 hover:bg-accent/30">
+                      {c.path.split("/").pop()}:{c.start}{c.end !== c.start ? `-${c.end}` : ""}
+                    </button>
+                  ))}
+                </div>
+              )}
               {m.ms !== undefined && <div className="text-right font-mono text-[10px] text-muted">{(m.ms / 1000).toLocaleString("tr-TR", { maximumFractionDigits: 2 })} sn</div>}
             </div>
           ),

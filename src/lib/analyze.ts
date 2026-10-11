@@ -27,6 +27,7 @@ const SECRET_RES = [
   /["'`]((?:sk|pk|rk|kl)_(?:live|test)_[A-Za-z0-9]{16,})["'`]/,
   /["'`](AKIA[0-9A-Z]{16})["'`]/,
 ];
+const TEST = /(^|\/)(tests?|__tests__|spec)\/|\.(test|spec)\.[jt]sx?$/;
 const DB_CALL = /await\s+[\w.]*\.(find\w*|query|select|get\w*ById|findMany|findOne|fetch)\(/;
 
 export function analyze(repo: Repo, index: RepoIndex): Analysis {
@@ -35,7 +36,7 @@ export function analyze(repo: Repo, index: RepoIndex): Analysis {
 
   // 1) Korumasız route: aynı router'daki route'ların çoğu korumalıyken bu değilse ya da /admin altındaysa
   for (const fi of index.files) {
-    if (!fi.routes.length) continue;
+    if (!fi.routes.length || TEST.test(fi.path)) continue;
     const guarded = fi.routes.filter((r) => r.middlewares.some((m) => AUTH_MW.test(m)));
     for (const r of fi.routes) {
       const isGuarded = r.middlewares.some((m) => AUTH_MW.test(m));
@@ -94,9 +95,11 @@ export function analyze(repo: Repo, index: RepoIndex): Analysis {
   }
 
   // 5) God file: medyanın 8 katından ve 400 satırdan büyük
-  const sizes = index.files.map((f) => f.lines).sort((a, b) => a - b);
+  // Test dosyaları uzun olabilir; sorumluluk dağınıklığı sayılmaz (gerçek bir repoda test.js'i god file sanıyordu)
+  const prod = index.files.filter((f) => !TEST.test(f.path));
+  const sizes = prod.map((f) => f.lines).sort((a, b) => a - b);
   const median = sizes[Math.floor(sizes.length / 2)] || 1;
-  for (const fi of index.files) {
+  for (const fi of prod) {
     if (fi.lines > 400 && fi.lines > median * 8) {
       add({ kind: "god-file", severity: "medium", files: [fi.path],
         fact: `${fi.path} ${fi.lines} satır (repodaki dosyaların ortanca boyu ${median} satır), ${fi.exports.length} export içeriyor; tek dosyada çok fazla sorumluluk.` });
@@ -131,7 +134,7 @@ export function analyze(repo: Repo, index: RepoIndex): Analysis {
       codeFiles: index.files.length,
       lines: repo.files.reduce((s, f) => s + f.lines, 0),
       edges: index.edges.length,
-      routes: index.files.reduce((s, f) => s + f.routes.length, 0),
+      routes: index.files.filter((f) => !TEST.test(f.path)).reduce((s, f) => s + f.routes.length, 0),
     },
     findings,
   };

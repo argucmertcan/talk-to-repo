@@ -80,7 +80,7 @@ export default function Home() {
     setDocsOpen(true); setDocs(null); setDocsError(undefined);
     const res = await fetch("/api/claudemd", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ context: buildIndexContext(repo, index, analysis), facts: docFacts(index, analysis) }),
+      body: JSON.stringify({ context: buildIndexContext(repo, index, analysis), facts: docFacts(repo, index, analysis) }),
     }).then((r) => r.json()).catch((e) => ({ error: String(e) }));
     if (res.error) return setDocsError(res.error);
     setDocs({ ...res, architectureMd: String(res.architectureMd).replace("{{DIAGRAM}}", mermaidOf(index)) });

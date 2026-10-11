@@ -10,12 +10,13 @@ const SYSTEM = `Sen kıdemli bir yazılım mimarısın. Bir kod deposunun İNDEK
 
 1) claudeMd — Claude Code'un bu repoda çalışırken her oturumda okuyacağı CLAUDE.md:
    # <repo adı> başlığı; ## Proje (2-3 cümle ne yapıyor); ## Yapı (klasörler ve sorumlulukları, madde madde);
-   ## Komutlar (package.json'dan çıkarılabiliyorsa, yoksa tahmin etme); ## Kurallar (bu koda özgü, somut: route ekleme deseni, middleware kullanımı, model erişimi);
+   ## Komutlar (SADECE olgular.paketler içindeki scripts; orada olmayan komutu ASLA yazma); ## Kurallar (bu koda özgü, somut: route ekleme deseni, middleware kullanımı, model erişimi);
    ## Dikkat (analizdeki kritik/orta bulgular → "yapma / önce şunu düzelt" diliyle, dosya:satır ile).
 2) architectureMd — ARCHITECTURE.md: ## Genel bakış; ## Katmanlar; ## İstek akışı (bir örnek akışı adım adım); ## Route tablosu (markdown tablo);
    ## Bilinen riskler. Diyagram yerine tam olarak şu satırı bırak: {{DIAGRAM}}
 
-Kurallar: SADECE verilen olgulara dayan; olmayan teknoloji, komut ya da dosya uydurma. Kısa ve kullanışlı yaz.`;
+Kurallar: SADECE verilen olgulara dayan. Kütüphane adı yazacaksan olgular.paketler.bagimliliklar listesinde olmalı (ör. doğrulama kütüphanesi listede ne ise o).
+Olmayan teknoloji, komut ya da dosya uydurma; emin değilsen yazma. Kısa ve kullanışlı yaz.`;
 
 export async function POST(req: Request) {
   const { context, facts } = (await req.json()) as { context: object; facts: object };

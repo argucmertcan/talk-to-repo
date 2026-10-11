@@ -1,0 +1,7 @@
+{
+  "name": "kargo-api",
+  "version": "2.4.1",
+  "private": true,
+  "scripts": { "dev": "ts-node-dev src/server.ts", "build": "tsc", "test": "jest" },
+  "dependencies": { "express": "^4.19.2", "jsonwebtoken": "^9.0.2", "bcryptjs": "^2.4.3", "pg": "^8.11.5", "nodemailer": "^6.9.13", "zod": "^3.23.8" }
+}

@@ -20,7 +20,9 @@ export async function loadZip(data: ArrayBuffer, fallbackName: string): Promise<
     if (!path || SKIP.test(path) || !TEXT_EXT.has(ext)) continue;
     const content = await e.async("string");
     if (content.length > MAX_BYTES) continue;
-    files.push({ path, content, lines: content.split("\n").length, ext });
+    // Dosya sonundaki "\n" fazladan boş satır sayılmasın (959 satırlık dosya 960 görünüyordu)
+    const lines = content.split("\n").length - (content.endsWith("\n") ? 1 : 0);
+    files.push({ path, content, lines, ext });
     if (files.length >= MAX_FILES) break;
   }
   files.sort((a, b) => a.path.localeCompare(b.path));

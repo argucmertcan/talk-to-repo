@@ -8,7 +8,9 @@ import { indexRepo } from "@/lib/indexer";
 import { analyze, SEVERITY_COLOR, type Finding } from "@/lib/analyze";
 import { AnalysisPanel, type InsightState } from "@/components/AnalysisPanel";
 import { ChatPanel, type ChatMsg } from "@/components/ChatPanel";
-import { ask, type Citation, type Turn } from "@/lib/assistant";
+import { ask, buildIndexContext, type Citation, type Turn } from "@/lib/assistant";
+import { DocsModal, type Docs } from "@/components/DocsModal";
+import { docFacts, mermaidOf } from "@/lib/docs";
 import { AnimatePresence, motion } from "framer-motion";
 import { loadZip } from "@/lib/loader";
 import type { Repo } from "@/lib/types";
@@ -26,6 +28,9 @@ export default function Home() {
   const [thinking, setThinking] = useState(false);
   const [focus, setFocus] = useState<Set<string>>(new Set());
   const [trail, setTrail] = useState<string[]>([]);
+  const [docsOpen, setDocsOpen] = useState(false);
+  const [docs, setDocs] = useState<Docs | null>(null);
+  const [docsError, setDocsError] = useState<string>();
 
   async function onZip(data: ArrayBuffer, name: string) {
     if (!data.byteLength) return setError(name);
@@ -70,8 +75,24 @@ export default function Home() {
     setHl(f.line ? [f.line, f.line] : null);
   }
 
+  async function makeDocs() {
+    if (!repo || !index || !analysis) return;
+    setDocsOpen(true); setDocs(null); setDocsError(undefined);
+    const res = await fetch("/api/claudemd", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ context: buildIndexContext(repo, index, analysis), facts: docFacts(index, analysis) }),
+    }).then((r) => r.json()).catch((e) => ({ error: String(e) }));
+    if (res.error) return setDocsError(res.error);
+    setDocs({ ...res, architectureMd: String(res.architectureMd).replace("{{DIAGRAM}}", mermaidOf(index)) });
+  }
+
   async function send(q: string) {
     if (!repo || !index || !analysis) return;
+    if (/claude\.?md|architecture\.md|dokümantasyon yaz/i.test(q)) {
+      setTab("sohbet");
+      setMessages((m) => [...m, { role: "user", text: q }, { role: "assistant", text: "Bu repo için CLAUDE.md ve ARCHITECTURE.md yazıyorum…" }]);
+      return makeDocs();
+    }
     setTab("sohbet");
     setMessages((m) => [...m, { role: "user", text: q }]);
     setThinking(true);
@@ -106,6 +127,7 @@ export default function Home() {
             <span className="text-muted">/</span>
             <span className="font-mono text-sm">{repo.name}</span>
             <span className="ml-auto text-sm text-muted">{repo.files.length} dosya · {loc.toLocaleString("tr-TR")} satır</span>
+            <button onClick={makeDocs} className="rounded-xl bg-accent px-4 py-1.5 text-sm font-semibold text-ink hover:bg-accent-2">CLAUDE.md üret</button>
           </>
         )}
       </header>
@@ -155,6 +177,7 @@ export default function Home() {
       ) : (
         <Loader onZip={onZip} busy={busy} error={error} />
       )}
+      {docsOpen && <DocsModal docs={docs} error={docsError} onClose={() => setDocsOpen(false)} />}
     </main>
   );
 }

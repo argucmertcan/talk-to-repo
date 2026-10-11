@@ -3,6 +3,9 @@ import { useMemo, useState } from "react";
 import { Loader } from "@/components/Loader";
 import { FileTree } from "@/components/FileTree";
 import { CodeView } from "@/components/CodeView";
+import { RepoMap } from "@/components/RepoMap";
+import { indexRepo } from "@/lib/indexer";
+import { AnimatePresence, motion } from "framer-motion";
 import { loadZip } from "@/lib/loader";
 import type { Repo } from "@/lib/types";
 
@@ -19,7 +22,7 @@ export default function Home() {
     try {
       const r = await loadZip(data, name);
       setRepo(r);
-      setSelected(r.files.find((f) => /readme/i.test(f.path))?.path ?? r.files[0]?.path ?? null);
+      setSelected(null);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -28,6 +31,7 @@ export default function Home() {
   }
 
   const file = useMemo(() => repo?.files.find((f) => f.path === selected) ?? null, [repo, selected]);
+  const index = useMemo(() => (repo ? indexRepo(repo) : null), [repo]);
   const loc = useMemo(() => repo?.files.reduce((s, f) => s + f.lines, 0) ?? 0, [repo]);
 
   return (
@@ -43,18 +47,28 @@ export default function Home() {
           </>
         )}
       </header>
-      {repo ? (
+      {repo && index ? (
         <div className="flex min-h-0 flex-1">
-          <aside className="w-72 shrink-0 border-r border-line bg-panel">
+          <aside className="w-64 shrink-0 border-r border-line bg-panel">
             <FileTree files={repo.files} selected={selected} onSelect={setSelected} />
           </aside>
-          <section className="min-w-0 flex-1">
-            {file && (
-              <div className="flex h-full flex-col">
-                <div className="border-b border-line bg-panel px-4 py-2 font-mono text-xs text-muted">{file.path} · {file.lines} satır</div>
-                <div className="min-h-0 flex-1"><CodeView file={file} /></div>
-              </div>
-            )}
+          <section className="relative min-w-0 flex-1">
+            <RepoMap index={index} selected={selected} onSelect={setSelected} />
+            <AnimatePresence>
+              {file && (
+                <motion.div
+                  key="code"
+                  initial={{ x: 40, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: 40, opacity: 0 }}
+                  className="absolute bottom-3 right-3 top-3 flex w-[46%] flex-col overflow-hidden rounded-2xl border border-line bg-panel shadow-2xl"
+                >
+                  <div className="flex items-center border-b border-line px-4 py-2 font-mono text-xs text-muted">
+                    <span className="truncate">{file.path} · {file.lines} satır</span>
+                    <button onClick={() => setSelected(null)} className="ml-auto pl-3 hover:text-white">✕</button>
+                  </div>
+                  <div className="min-h-0 flex-1"><CodeView file={file} /></div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </section>
         </div>
       ) : (

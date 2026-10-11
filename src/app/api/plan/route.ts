@@ -28,7 +28,7 @@ export async function POST(req: Request) {
     question: string; context: object; history?: { role: "user" | "assistant"; content: string }[];
   };
   try {
-    const { data, ms } = await groqJson(
+    const { data, ms } = await groqJson<object>(
       [
         { role: "system", content: SYSTEM },
         { role: "user", content: `İNDEKS:\n${JSON.stringify(context)}` },

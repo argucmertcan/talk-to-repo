@@ -21,7 +21,7 @@ export async function POST(req: Request) {
     question: string; snippets: { dosya: string; satirlar: string; kod: string }[]; history?: { role: "user" | "assistant"; content: string }[];
   };
   try {
-    const { data, ms } = await groqJson(
+    const { data, ms } = await groqJson<{ answer: string; citations: { path: string; start: number; end: number }[] }>(
       [
         { role: "system", content: SYSTEM },
         ...(history ?? []).slice(-4),

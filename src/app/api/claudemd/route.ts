@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { groqJson } from "@/lib/groq";
+import { rateLimit, readJson } from "@/lib/guard";
 
 const schema = {
   type: "object", additionalProperties: false, required: ["claudeMd", "architectureMd"],
@@ -19,7 +20,11 @@ Kurallar: SADECE verilen olgulara dayan. Kütüphane adı yazacaksan olgular.pak
 Olmayan teknoloji, komut ya da dosya uydurma; emin değilsen yazma. Kısa ve kullanışlı yaz.`;
 
 export async function POST(req: Request) {
-  const { context, facts } = (await req.json()) as { context: object; facts: object };
+  const limited = rateLimit(req, "llm");
+  if (limited) return limited;
+  const parsed = await readJson<{ context: object; facts: object }>(req, 300_000);
+  if ("error" in parsed) return parsed.error;
+  const { context, facts } = parsed.body;
   try {
     const { data, ms } = await groqJson<{ claudeMd: string; architectureMd: string }>(
       [{ role: "system", content: SYSTEM }, { role: "user", content: JSON.stringify({ indeks: context, olgular: facts }) }],

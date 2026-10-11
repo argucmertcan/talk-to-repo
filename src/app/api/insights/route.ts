@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { groqJson } from "@/lib/groq";
+import { rateLimit, readJson } from "@/lib/guard";
 import type { Finding } from "@/lib/analyze";
 
 export interface InsightCard { id: string; title: string; detail: string; question: string }
@@ -27,7 +28,12 @@ Her bulgu için Türkçe bir içgörü kartı yaz:
 Önem sırasını koru (high → info). summary: repoyu tek cümlede anlat (ne yapıyor, kaç dosya).`;
 
 export async function POST(req: Request) {
-  const { repo, stats, findings, files } = (await req.json()) as { repo: string; stats: object; findings: Finding[]; files: string[] };
+  const limited = rateLimit(req, "llm");
+  if (limited) return limited;
+  const parsed = await readJson<{ repo: string; stats: object; findings: Finding[]; files: string[] }>(req, 150_000);
+  if ("error" in parsed) return parsed.error;
+  const { repo, stats, files } = parsed.body;
+  const findings = (parsed.body.findings ?? []).slice(0, 40);
   try {
     const { data, ms } = await groqJson<{ summary: string; cards: InsightCard[] }>(
       [

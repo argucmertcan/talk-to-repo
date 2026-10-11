@@ -31,6 +31,16 @@ Açılış ekranında **"Örnek repoyla dene"** kurgusal bir kargo API'sini (81 
 - Node 20+, build `npm run build`, start `npm start` (Next.js `PORT` değişkenini kendisi okur).
 - Ortam değişkeni: `GROQ_API_KEY`. Anahtar yalnızca sunucuda kullanılır, istemciye gitmez.
 - Repo tarayıcıda işlenir; sunucu sadece GitHub zip'ini aktarır ve Groq çağrılarını yapar.
+- Herkese açık demo için koruma (bellekte, tek sunucu örneği için) ortam değişkenleriyle ayarlanır:
+
+| Değişken | Varsayılan | Ne yapar |
+|---|---|---|
+| `RATE_LIMIT_LLM` | 30 | IP başına 10 dakikada yapay zekâ isteği |
+| `RATE_LIMIT_LLM_GLOBAL` | 600 | Tüm ziyaretçiler için saatte toplam yapay zekâ isteği (Groq kotasını korur) |
+| `RATE_LIMIT_GITHUB` | 10 | IP başına 10 dakikada GitHub repo indirme |
+| `MAX_REPO_ZIP_MB` | 50 | GitHub zip boyutu üst sınırı (akış hâlinde kesilir) |
+
+İstek gövdeleri de sınırlıdır (plan/CLAUDE.md 300 KB, cevap/içgörü 150 KB, soru 500 karakter).
 
 ## Sınırlar
 - Sadece **public** GitHub repoları (`main` ya da `master` dalı). En fazla 2.000 dosya, dosya başına 400 KB.

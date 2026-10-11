@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { groqJson, historyNote } from "@/lib/groq";
+import { rateLimit, readJson, MAX_QUESTION } from "@/lib/guard";
 
 const str = { type: "string" };
 const schema = {
@@ -24,9 +25,17 @@ Plan alanları:
 Yolları indeksteki gibi BİREBİR yaz. Import zincirini kullanarak akışı çıkar. Mesaj "HATA:" ile başlıyorsa önceki planın geçersizdi; düzelt.`;
 
 export async function POST(req: Request) {
-  const { question, context, history } = (await req.json()) as {
+  const limited = rateLimit(req, "llm");
+  if (limited) return limited;
+  const parsed = await readJson<{
     question: string; context: object; history?: { role: "user" | "assistant"; content: string }[];
-  };
+  }>(req, 300_000);
+  if ("error" in parsed) return parsed.error;
+  const { question, context, history } = parsed.body;
+  // Kendini düzeltme isteği sorunun başına hata açıklaması ekler; o yüzden sınır biraz geniş
+  if (typeof question !== "string" || question.length > MAX_QUESTION + 1500) {
+    return NextResponse.json({ error: "Soru çok uzun." }, { status: 400 });
+  }
   try {
     const { data, ms } = await groqJson<object>(
       [

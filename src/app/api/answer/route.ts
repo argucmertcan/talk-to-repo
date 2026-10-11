@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { groqJson, historyNote } from "@/lib/groq";
+import { rateLimit, readJson, MAX_QUESTION } from "@/lib/guard";
 
 const schema = {
   type: "object", additionalProperties: false, required: ["answer", "citations"],
@@ -17,9 +18,16 @@ Soruyu SADECE bu parçalara dayanarak Türkçe cevapla. Parçalarda olmayan bir 
 Güvenlik açığı görürsen (yetki kontrolü yok, sabit anahtar vb.) açıkça belirt.`;
 
 export async function POST(req: Request) {
-  const { question, snippets, history } = (await req.json()) as {
+  const limited = rateLimit(req, "llm");
+  if (limited) return limited;
+  const parsed = await readJson<{
     question: string; snippets: { dosya: string; satirlar: string; kod: string }[]; history?: { role: "user" | "assistant"; content: string }[];
-  };
+  }>(req, 150_000);
+  if ("error" in parsed) return parsed.error;
+  const { question, snippets, history } = parsed.body;
+  if (typeof question !== "string" || question.length > MAX_QUESTION || !Array.isArray(snippets) || snippets.length > 8) {
+    return NextResponse.json({ error: "Geçersiz soru." }, { status: 400 });
+  }
   try {
     const { data, ms } = await groqJson<{ answer: string; citations: { path: string; start: number; end: number }[] }>(
       [

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { groqJson } from "@/lib/groq";
+import { groqJson, historyNote } from "@/lib/groq";
 
 const schema = {
   type: "object", additionalProperties: false, required: ["answer", "citations"],
@@ -24,8 +24,7 @@ export async function POST(req: Request) {
     const { data, ms } = await groqJson<{ answer: string; citations: { path: string; start: number; end: number }[] }>(
       [
         { role: "system", content: SYSTEM },
-        ...(history ?? []).slice(-4),
-        { role: "user", content: `SORU: ${question}\n\nKOD PARÇALARI:\n${snippets.map((s) => `### ${s.dosya} (${s.satirlar})\n${s.kod}`).join("\n\n")}` },
+        { role: "user", content: `${historyNote(history)}SORU: ${question}\n\nKOD PARÇALARI:\n${snippets.map((s) => `### ${s.dosya} (${s.satirlar})\n${s.kod}`).join("\n\n")}` },
       ],
       "answer",
       schema,

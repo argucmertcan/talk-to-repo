@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { groqJson } from "@/lib/groq";
+import { groqJson, historyNote } from "@/lib/groq";
 
 const str = { type: "string" };
 const schema = {
@@ -32,8 +32,7 @@ export async function POST(req: Request) {
       [
         { role: "system", content: SYSTEM },
         { role: "user", content: `İNDEKS:\n${JSON.stringify(context)}` },
-        ...(history ?? []).slice(-6),
-        { role: "user", content: question },
+        { role: "user", content: `${historyNote(history, 6)}SORU: ${question}` },
       ],
       "plan",
       schema,

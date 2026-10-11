@@ -5,6 +5,14 @@ export const MODEL = "openai/gpt-oss-120b";
 
 type Msg = { role: "system" | "user" | "assistant"; content: string };
 
+/** Önceki konuşmayı düz metin bağlam olarak verir.
+ *  Geçmişteki cevaplar "assistant" mesajı olarak gidince model o düz metin kalıbını taklit edip JSON yerine düz cevap yazıyordu (json_validate_failed). */
+export function historyNote(history: { role: "user" | "assistant"; content: string }[] = [], n = 4) {
+  const h = history.slice(-n);
+  if (!h.length) return "";
+  return `ÖNCEKİ KONUŞMA (sadece bağlam):\n${h.map((t) => `${t.role === "user" ? "Kullanıcı" : "Asistan"}: ${t.content.slice(0, 600)}`).join("\n")}\n\n`;
+}
+
 /** Groq'a JSON şemalı istek atar; parse edilmiş nesneyi ve süreyi döndürür. */
 export async function groqJson<T>(messages: Msg[], schemaName: string, schema: object, attempt = 1): Promise<{ data: T; ms: number }> {
   const key = process.env.GROQ_API_KEY;
